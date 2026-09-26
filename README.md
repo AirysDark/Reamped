@@ -123,6 +123,22 @@ The minimum control/audio set is:
 
 For the cut donor board, do not solder to the TAS5731M legs unless necessary. Continuity-trace each required pin to a larger resistor pad, capacitor pad or via and solder there.
 
+
+## Code layout
+
+The firmware is intentionally split across multiple `.h` / `.cpp` files so each subsystem can be debugged independently in Arduino IDE:
+
+| File | Purpose |
+|---|---|
+| `Reamped.ino` | Minimal application entry point; creates objects and calls setup/service methods |
+| `ReampedPins.h` | ESP32-S3 GPIO assignments and project-wide clock/sample-rate constants |
+| `Tas5731m.h` / `Tas5731m.cpp` | TAS5731M I2C driver, reset/power-down sequencing, mute, volume and status |
+| `AudioOutput.h` / `AudioOutput.cpp` | ESP32-S3 I2S setup and audio sample transmission |
+| `TestTone.h` / `TestTone.cpp` | Low-level 440 Hz diagnostic tone generator |
+| `SerialConsole.h` / `SerialConsole.cpp` | Serial debug commands and amplifier status reporting |
+
+This keeps amplifier faults, I2S faults and command/UI faults separate instead of putting the whole project in one large `.ino` file.
+
 ## Arduino IDE setup
 
 1. Install Espressif Arduino-ESP32 **2.0.17**.
