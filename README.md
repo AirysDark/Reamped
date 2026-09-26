@@ -21,6 +21,7 @@ Reamped is an Arduino IDE project for rebuilding the salvaged Bluetooth speaker 
 - Keep the original four output inductors, bootstrap capacitors and local decoupling parts on the salvaged amplifier PCB.
 - The TAS5731M is an I2S slave, so the ESP32-S3 must supply MCLK, BCLK/SCLK and LRCLK.
 - TAS5731M I2C address is **0x34** when ADR/FAULT is pulled LOW and **0x36** when ADR/FAULT is pulled HIGH.
+- The cut donor amplifier board may no longer contain its original 3.3 V regulator. **Verify AVDD pin 13 and DVDD pin 27 actually receive 3.3 V before applying PVDD.**
 
 ## Suggested ESP32-S3 wiring
 
@@ -132,7 +133,8 @@ The firmware is intentionally split across multiple `.h` / `.cpp` files so each 
 |---|---|
 | `Reamped.ino` | Minimal application entry point; creates objects and calls setup/service methods |
 | `ReampedPins.h` | ESP32-S3 GPIO assignments and project-wide clock/sample-rate constants |
-| `Tas5731m.h` / `Tas5731m.cpp` | TAS5731M I2C driver, reset/power-down sequencing, mute, volume and status |
+| `Tas5731m.h` / `Tas5731m.cpp` | TAS5731M I2C driver, conservative startup/shutdown sequencing, mute, volume, raw register access and status |
+| `Tas5731mDsp.h` / `Tas5731mDsp.cpp` | Dedicated multi-byte DSP register access for later EQ, biquad, routing and DRC work |
 | `AudioOutput.h` / `AudioOutput.cpp` | ESP32-S3 I2S setup and audio sample transmission |
 | `TestTone.h` / `TestTone.cpp` | Low-level 440 Hz diagnostic tone generator |
 | `SerialConsole.h` / `SerialConsole.cpp` | Serial debug commands and amplifier status reporting |
@@ -159,13 +161,74 @@ The sketch currently provides a safe bring-up path:
 - supplies MCLK/BCLK/LRCLK/SDIN
 - follows the TAS5731M reset timing
 - performs oscillator trim
+- uses a conservative **450 ms first-start guard** before leaving shutdown
+- waits **170 ms after leaving shutdown** before restoring the requested volume
 - selects 16-bit I2S mode
 - starts from muted volume
 - exits shutdown only when the amplifier responds on I2C
 - generates an optional low-level stereo test tone
 - reports TAS5731M error status over Serial
+- supports graceful shutdown/restart from the Serial console
+- exposes block register I/O for future TAS5731M DSP programming
 
 The code deliberately starts quietly. Increase volume only after the speaker wiring and supply rails have been verified.
+
+
+## Power-up sequence used by Reamped
+
+The salvaged board no longer has the original lower control/power section, so Reamped deliberately uses conservative timing during first bring-up:
+
+```text
+1. ESP32-S3 starts I2S first so MCLK/BCLK/LRCLK are present.
+2. TAS5731M RESET = LOW, PDN = HIGH.
+3. Wait >100 us.
+4. RESET = HIGH.
+5. Wait 15 ms.
+6. Detect I2C address (0x34 or 0x36).
+7. Write oscillator trim register 0x1B = 0x00.
+8. Wait 55 ms.
+9. Configure 16-bit I2S and force mute.
+10. Wait 450 ms first-start guard.
+11. Exit all-channel shutdown.
+12. Wait 170 ms for output-stage soft start.
+13. Restore the requested low startup volume (-48 dB).
+14. Remain muted until explicitly unmuted/tested.
+```
+
+This is intentionally slower than the minimum path because the donor PCB rail ramp characteristics are currently unknown.
+
+Before first hardware power-up, verify:
+
+- AVDD pin 13 -> approximately 3.3 V
+- DVDD pin 27 -> approximately 3.3 V
+- PVDD-to-GND is not a hard short
+- ESP32-S3 GND and amplifier GND are common
+- speaker outputs are not tied to GND
+
+## Serial debug commands
+
+```text
+?  help
+i  amplifier status
+t  toggle low-level 440 Hz test tone
+m  toggle mute
+p  graceful amplifier shutdown
+r  rerun amplifier bring-up sequence
++  volume up 1 dB
+-  volume down 1 dB
+```
+
+## DSP expansion
+
+The TAS5731M contains internal DSP resources, so future Reamped firmware can move tone shaping and protection into the amplifier instead of spending ESP32-S3 CPU time on every audio sample. The dedicated `Tas5731mDsp.*` module is reserved for verified TI-format multi-byte transactions such as:
+
+- biquad EQ
+- bass/mid/treble presets
+- channel routing/mixing
+- dynamic-range compression
+- limiter/protection tuning
+
+No guessed coefficients are written by the current firmware.
 
 ## Salvaged speaker connector
 
