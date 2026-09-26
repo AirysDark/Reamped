@@ -1,0 +1,167 @@
+# Reamped
+
+Reamped is an Arduino IDE project for rebuilding the salvaged Bluetooth speaker amplifier around an **ESP32-S3** and the original **Texas Instruments TAS5731M** Class-D amplifier section.
+
+## Target
+
+- MCU: ESP32-S3
+- Arduino IDE
+- Arduino-ESP32 Core: **2.0.17**
+- Amplifier: **TAS5731M**
+- Audio link: I2S from ESP32-S3 to TAS5731M
+- Control link: I2C from ESP32-S3 to TAS5731M
+- Amplifier power stage: original salvaged PCB section with the TAS5731M, four output inductors, bulk capacitors and speaker connector retained.
+
+## Important electrical notes
+
+- TAS5731M PVDD power stage: **8 V to 26.4 V absolute operating range; 24 V is the normal high-power target**.
+- TAS5731M AVDD and DVDD: **3.3 V nominal**.
+- ESP32-S3 GPIO is **3.3 V only**.
+- The speaker outputs are BTL. **Do not connect L- or R- to GND.**
+- Keep the original four output inductors, bootstrap capacitors and local decoupling parts on the salvaged amplifier PCB.
+- The TAS5731M is an I2S slave, so the ESP32-S3 must supply MCLK, BCLK/SCLK and LRCLK.
+- TAS5731M I2C address is **0x34** when ADR/FAULT is pulled LOW and **0x36** when ADR/FAULT is pulled HIGH.
+
+## Suggested ESP32-S3 wiring
+
+These GPIO numbers are the project defaults and can be changed in `ReampedPins.h`.
+
+| ESP32-S3 GPIO | TAS5731M pin | Signal |
+|---:|---:|---|
+| GPIO1 | 15 | MCLK |
+| GPIO2 | 21 | SCLK / I2S BCLK |
+| GPIO3 | 20 | LRCLK / WS |
+| GPIO4 | 22 | SDIN / I2S data |
+| GPIO8 | 23 | SDA |
+| GPIO9 | 24 | SCL |
+| GPIO10 | 25 | RESET, active LOW |
+| GPIO11 | 19 | PDN, active LOW |
+| 3V3 | 13 | AVDD |
+| 3V3 | 27 | DVDD |
+| GND | 9 | AVSS |
+| GND | 17 | DVSSO |
+| GND | 28 | DVSS |
+| GND | 29 | GND |
+| GND | 30 | AGND |
+| GND | 37,38 | PGND_CD |
+| GND | 47,48 | PGND_AB |
+
+The salvaged board's existing high-current power connector should feed PVDD through its existing PCB traces. Do not run speaker-current power through the ESP32-S3 board.
+
+## TAS5731M full 48-pin pinout
+
+The table below follows the TI TAS5731M datasheet for the 48-pin HTQFP package.
+
+| Pin | Name | Function |
+|---:|---|---|
+| 1 | OUT_A | Half-bridge output A |
+| 2 | PVDD_AB | Power supply for half-bridges A/B |
+| 3 | PVDD_AB | Power supply for half-bridges A/B |
+| 4 | BST_A | Bootstrap A |
+| 5 | NC | No connect |
+| 6 | SSTIMER | Soft-start/ramp timing |
+| 7 | NC | No connect |
+| 8 | PBTL | BTL/PBTL mode select; LOW/default = BTL |
+| 9 | AVSS | Analog 3.3 V supply ground |
+| 10 | PLL_FLTM | PLL loop-filter negative |
+| 11 | PLL_FLTP | PLL loop-filter positive |
+| 12 | VR_ANA | Internal 1.8 V analog regulator output; do not use externally |
+| 13 | AVDD | 3.3 V analog supply |
+| 14 | ADR/FAULT | I2C address select at power-up / optional fault output |
+| 15 | MCLK | Master clock input |
+| 16 | OSC_RES | Oscillator trim resistor connection |
+| 17 | DVSSO | Oscillator ground |
+| 18 | VR_DIG | Internal 1.8 V digital regulator output; do not use externally |
+| 19 | PDN | Power-down input, active LOW |
+| 20 | LRCLK | I2S left/right clock |
+| 21 | SCLK | I2S bit clock |
+| 22 | SDIN | I2S serial audio data input |
+| 23 | SDA | I2C data |
+| 24 | SCL | I2C clock |
+| 25 | RESET | Reset input, active LOW |
+| 26 | STEST | Factory test; connect to DVSS |
+| 27 | DVDD | 3.3 V digital supply |
+| 28 | DVSS | Digital ground |
+| 29 | GND | Analog/power-stage ground |
+| 30 | AGND | Local analog ground for power stage |
+| 31 | VREG | Internal digital regulator output; do not power external circuitry |
+| 32 | GVDD_OUT | Internal gate-drive regulator output |
+| 33 | BST_D | Bootstrap D |
+| 34 | PVDD_CD | Power supply for half-bridges C/D |
+| 35 | PVDD_CD | Power supply for half-bridges C/D |
+| 36 | OUT_D | Half-bridge output D |
+| 37 | PGND_CD | Power ground C/D |
+| 38 | PGND_CD | Power ground C/D |
+| 39 | OUT_C | Half-bridge output C |
+| 40 | NC | No connect |
+| 41 | NC | No connect |
+| 42 | BST_C | Bootstrap C |
+| 43 | BST_B | Bootstrap B |
+| 44 | NC | No connect |
+| 45 | NC | No connect |
+| 46 | OUT_B | Half-bridge output B |
+| 47 | PGND_AB | Power ground A/B |
+| 48 | PGND_AB | Power ground A/B |
+
+The exposed PowerPAD underneath the IC must remain connected to system ground through the original PCB.
+
+## Pins we need for the ESP32-S3 rebuild
+
+The minimum control/audio set is:
+
+- Pin 13 AVDD -> 3.3 V
+- Pin 27 DVDD -> 3.3 V
+- Pin 15 MCLK <- ESP32-S3
+- Pin 20 LRCLK <- ESP32-S3
+- Pin 21 SCLK/BCLK <- ESP32-S3
+- Pin 22 SDIN <- ESP32-S3
+- Pin 23 SDA <-> ESP32-S3
+- Pin 24 SCL <- ESP32-S3
+- Pin 25 RESET <- ESP32-S3
+- Pin 19 PDN <- ESP32-S3
+- Common GND between ESP32-S3 and amplifier
+
+For the cut donor board, do not solder to the TAS5731M legs unless necessary. Continuity-trace each required pin to a larger resistor pad, capacitor pad or via and solder there.
+
+## Arduino IDE setup
+
+1. Install Espressif Arduino-ESP32 **2.0.17**.
+2. Select an ESP32-S3 board matching the hardware being used.
+3. Open `Reamped.ino`.
+4. Edit `ReampedPins.h` if different GPIOs are required.
+5. Start with the amplifier power supply disconnected and verify the 3.3 V/control wiring first.
+6. Power the salvaged amplifier section only after checking PVDD-to-GND for a hard short.
+
+## Current firmware
+
+The sketch currently provides a safe bring-up path:
+
+- holds TAS5731M in reset/power-down during boot
+- starts I2C at 100 kHz
+- checks both valid TAS5731M addresses: 0x34 and 0x36
+- configures ESP32-S3 I2S for 48 kHz stereo
+- supplies MCLK/BCLK/LRCLK/SDIN
+- follows the TAS5731M reset timing
+- performs oscillator trim
+- selects 16-bit I2S mode
+- starts from muted volume
+- exits shutdown only when the amplifier responds on I2C
+- generates an optional low-level stereo test tone
+- reports TAS5731M error status over Serial
+
+The code deliberately starts quietly. Increase volume only after the speaker wiring and supply rails have been verified.
+
+## Salvaged speaker connector
+
+The original speaker connector should remain connected to the four LC-filter outputs on the donor PCB:
+
+```text
+L+ ---- left speaker ---- L-
+R+ ---- right speaker --- R-
+```
+
+Neither negative speaker terminal is chassis/system ground.
+
+## Reference
+
+Texas Instruments: TAS5731M, “2 × 30-W Digital Audio Power Amplifier With DSP and 2.1 Mode”, Rev. C.
