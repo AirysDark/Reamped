@@ -15,6 +15,8 @@ void SerialConsole::printHelp() {
   Serial.println("  i  amplifier status");
   Serial.println("  t  toggle low-level 440 Hz test tone");
   Serial.println("  m  toggle mute");
+  Serial.println("  p  graceful amplifier shutdown");
+  Serial.println("  r  restart amplifier bring-up sequence");
   Serial.println("  +  volume up 1 dB");
   Serial.println("  -  volume down 1 dB");
   Serial.println();
@@ -71,6 +73,31 @@ void SerialConsole::service() {
       case 'm':
       case 'M':
         amp_.setMute(!amp_.muted());
+        break;
+
+      case 'p':
+      case 'P':
+        if (tone_.enabled()) {
+          tone_.setEnabled(false);
+        }
+        if (amp_.shutdown()) {
+          Serial.println("[AMP] Shutdown sequence complete.");
+        } else {
+          Serial.println("[AMP] Shutdown completed in hard-safe state.");
+        }
+        break;
+
+      case 'r':
+      case 'R':
+        if (tone_.enabled()) {
+          tone_.setEnabled(false);
+        }
+        if (amp_.ready()) {
+          amp_.shutdown();
+        }
+        if (!amp_.begin()) {
+          Serial.println("[AMP] Restart failed; amplifier held safe.");
+        }
         break;
 
       case '+': {
